@@ -120,6 +120,8 @@ dependencies {
     testRuntimeOnly("org.openrewrite:rewrite-java-11:${rewriteVersion}")
     testRuntimeOnly("org.openrewrite:rewrite-java-8:${rewriteVersion}")
 
+    testImplementation("javax.ws.rs:jsr311-api:latest.release")
+
     testRuntimeOnly("junit:junit:latest.release")
     testRuntimeOnly("org.springframework:spring-test:4.+")
     testRuntimeOnly("org.springframework:spring-beans:4.+")
