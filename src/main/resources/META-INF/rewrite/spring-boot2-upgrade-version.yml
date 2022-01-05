@@ -220,6 +220,8 @@ recipeList:
   # Upgrade to 2.4.x from 2.3.x
   - org.openrewrite.java.spring.boot2.UpgradeSpringBoot_2_4
 
+  # TODO: Add recipe here to replace deprecations removed in 2.5 (https://github.com/openrewrite/rewrite-spring/issues/125) before upgrading deps to 2.5.x
+
   # Upgrade to 2.5.x from 2.4.x
   - org.openrewrite.maven.UpgradeDependencyVersion:
       groupId: org.springframework.boot
@@ -230,6 +232,8 @@ recipeList:
       groupId: org.springframework.boot
       artifactId: spring-boot-starter-parent
       newVersion: 2.5.x
+
+  - org.openrewrite.java.spring.boot2.SqlScriptDataSourceInitialization
 
   # Use recommended replacements for deprecated APIs
   - org.openrewrite.java.spring.boot2.MigrateEntityManagerFactoryDependsOnPostProcessorCustomizerPackageName
