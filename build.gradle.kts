@@ -25,7 +25,7 @@ plugins {
     id("com.github.jk1.dependency-license-report") version "1.16"
     id("org.owasp.dependencycheck") version "6.5.3"
 
-    id("nebula.maven-publish") version "17.3.2"
+    id("nebula.maven-publish") version "18.4.0"
     id("nebula.contacts") version "5.1.0"
     id("nebula.info") version "11.1.0"
 
