@@ -31,7 +31,7 @@ plugins {
 
     id("nebula.javadoc-jar") version "17.3.2"
     id("nebula.source-jar") version "17.3.2"
-    id("nebula.maven-apache-license") version "17.3.2"
+    id("nebula.maven-apache-license") version "18.4.0"
 
     id("org.openrewrite.rewrite") version "latest.release"
 }
