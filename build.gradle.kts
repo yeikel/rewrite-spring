@@ -187,7 +187,7 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:latest.release")
     testImplementation("org.junit.jupiter:junit-jupiter-params:latest.release")
-    testImplementation("org.junit.jupiter:junit-jupiter-engine:latest.release")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.9.2")
 
     testImplementation("org.openrewrite:rewrite-test:${rewriteVersion}")
 
