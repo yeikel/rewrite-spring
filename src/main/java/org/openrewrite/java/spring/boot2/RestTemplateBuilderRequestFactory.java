@@ -30,7 +30,7 @@ import org.openrewrite.java.tree.JavaType;
 import org.openrewrite.java.tree.TypeUtils;
 
 /**
- * https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.0-Migration-Guide#resttemplatebuilder
+ * <a href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.0-Migration-Guide#resttemplatebuilder">...</a>
  */
 public class RestTemplateBuilderRequestFactory extends Recipe {
     private static final MethodMatcher REQUEST_FACTORY = new MethodMatcher(
@@ -58,14 +58,13 @@ public class RestTemplateBuilderRequestFactory extends Recipe {
     }
 
     private static class RestTemplateBuilderRequestFactoryVisitor extends JavaIsoVisitor<ExecutionContext> {
-
         @Override
         public J.MethodInvocation visitMethodInvocation(J.MethodInvocation method, ExecutionContext ctx) {
             J.MethodInvocation m = super.visitMethodInvocation(method, ctx);
 
             // TODO JavaTemplate doesn't replace method type attribution when replacing arguments.
             boolean isArgumentClientHttpRequestFactory = method.getArguments().size() == 1 &&
-                    TypeUtils.isAssignableTo(JavaType.Class.build("org.springframework.http.client.ClientHttpRequestFactory"),
+                    TypeUtils.isAssignableTo(JavaType.ShallowClass.build("org.springframework.http.client.ClientHttpRequestFactory"),
                             method.getArguments().get(0).getType());
 
             if (REQUEST_FACTORY.matches(method) && isArgumentClientHttpRequestFactory) {

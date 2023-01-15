@@ -15,6 +15,8 @@
  */
 package org.openrewrite.java.spring.boot2.search;
 
+import lombok.Value;
+import lombok.With;
 import org.openrewrite.ExecutionContext;
 import org.openrewrite.Recipe;
 import org.openrewrite.SourceFile;
@@ -25,11 +27,11 @@ import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.marker.JavaProject;
 import org.openrewrite.java.tree.J;
 import org.openrewrite.java.tree.TextComment;
+import org.openrewrite.marker.Marker;
 import org.openrewrite.marker.Markers;
+import org.openrewrite.marker.SearchResult;
 import org.openrewrite.maven.MavenVisitor;
-import org.openrewrite.maven.internal.MavenParsingException;
 import org.openrewrite.maven.tree.MavenResolutionResult;
-import org.openrewrite.maven.tree.Pom;
 import org.openrewrite.maven.tree.ResolvedDependency;
 import org.openrewrite.maven.tree.Scope;
 import org.openrewrite.properties.PropertiesVisitor;
@@ -60,7 +62,7 @@ public class IntegrationSchedulerPoolRecipe extends Recipe {
 
     @Override
     public String getDisplayName() {
-        return "Integration Sceduler Pool Size";
+        return "Integration scheduler pool size";
     }
 
     @Override
@@ -68,7 +70,7 @@ public class IntegrationSchedulerPoolRecipe extends Recipe {
         return "Spring Integration now reuses an available TaskScheduler rather than configuring its own. In a" +
                 " typical application setup relying on the auto-configuration, this means that Spring Integration" +
                 " uses the auto-configured task scheduler that has a pool size of 1. To restore Spring Integration’s" +
-                " default of 10 threads, use the spring.task.scheduling.pool.size property.";
+                " default of 10 threads, use the `spring.task.scheduling.pool.size` property.";
     }
 
     private boolean isApplicableMavenProject(Xml.Document maven) {
@@ -106,7 +108,7 @@ public class IntegrationSchedulerPoolRecipe extends Recipe {
             public Xml visitDocument(Xml.Document document, ExecutionContext ctx) {
 
                 if (isApplicableMavenProject(document)) {
-                    return document.withMarkers(document.getMarkers().searchResult());
+                    return SearchResult.found(document);
                 }
                 return document;
             }
@@ -124,72 +126,90 @@ public class IntegrationSchedulerPoolRecipe extends Recipe {
                 .map(Optional::get)
                 .collect(Collectors.toSet());
 
-        Set<JavaProject> projectsWithCommentOverProperty = new HashSet<>();
-
         // Leave the comment about scheduler pool size next to 'spring.task.scheduling.pool.size' property in the external properties file (props or yaml)
         List<SourceFile> modified = ListUtils.map(before, source -> {
+            if (source.getMarkers().findFirst(CommentAdded.class).isPresent()) {
+                JavaProject javaProject = source.getMarkers().findFirst(JavaProject.class).orElse(null);
+                javaProjects.remove(javaProject);
+                return source;
+            }
             String fileName = source.getSourcePath().getFileName().toString();
             JavaProject javaProject = source.getMarkers().findFirst(JavaProject.class).orElse(null);
             if (javaProjects.contains(javaProject)) {
                 if (APP_PROPS_FILE_REGEX.matcher(fileName).matches() && source instanceof Properties) {
                     Set<Properties.Entry> foundEntries = FindProperties.find((Properties) source, PROPERTY_KEY, false);
                     if (!foundEntries.isEmpty()) {
-                        projectsWithCommentOverProperty.add(javaProject);
                         // There should only be one exact match!
                         Properties.Entry entry = foundEntries.iterator().next();
-                        return (SourceFile) new PropertiesVisitor<ExecutionContext>() {
+                        source = (SourceFile) new PropertiesVisitor<ExecutionContext>() {
                             @Override
                             public Properties visitFile(Properties.File file, ExecutionContext context) {
                                 int idx = file.getContent().indexOf(entry);
                                 if (idx >= 0) {
-                                    Properties.Comment comment = new Properties.Comment(Tree.randomId(), "\n", Markers.EMPTY, PROPS_MIGRATION_MESSAGE);
+                                    Properties.Comment comment = new Properties.Comment(Tree.randomId(), "\n", Markers.EMPTY, Properties.Comment.Delimiter.HASH_TAG, PROPS_MIGRATION_MESSAGE);
                                     return file.withContent(ListUtils.insertAll(file.getContent(), idx, Collections.singletonList(comment)));
                                 } else {
                                     throw new RuntimeException("Entry must be present in the properties file!");
                                 }
                             }
                         }.visitNonNull(source, ctx);
+                        javaProjects.remove(javaProject);
+                        source = source.withMarkers(source.getMarkers().addIfAbsent(new CommentAdded(Tree.randomId())));
                     }
                 } else if (APP_YAML_FILE_REGEX.matcher(fileName).matches() && source instanceof Yaml) {
                     Set<Yaml.Block> foundEntriesValues = FindProperty.find((Yaml) source, PROPERTY_KEY, false);
                     if (!foundEntriesValues.isEmpty()) {
-                        projectsWithCommentOverProperty.add(javaProject);
-                        return (SourceFile) new YamlIsoVisitor<ExecutionContext>(){
+                        source = (SourceFile) new YamlIsoVisitor<ExecutionContext>(){
                             @Override
                             public Yaml.Mapping.Entry visitMappingEntry(Yaml.Mapping.Entry entry, ExecutionContext context) {
                                 if (foundEntriesValues.contains(entry.getValue())) {
-                                    return entry.withPrefix("\n#" + PROPS_MIGRATION_MESSAGE + entry.getPrefix());
+                                    entry = entry.withPrefix("\n#" + PROPS_MIGRATION_MESSAGE + entry.getPrefix());
                                 }
                                 return super.visitMappingEntry(entry, context);
                             }
                         }.visitNonNull(source, ctx);
+                        javaProjects.remove(javaProject);
+                        source = source.withMarkers(source.getMarkers().addIfAbsent(new CommentAdded(Tree.randomId())));
                     }
                 }
             }
             return source;
         });
 
-        javaProjects.removeAll(projectsWithCommentOverProperty);
-
-        // Leave generic comment next Boot Application main class declaration since no property value specified for thread pool size
-        modified = ListUtils.map(modified, source -> {
-            if (javaProjects.contains(source.getMarkers().findFirst(JavaProject.class).orElse(null))) {
-                AnnotationMatcher annotationMatcher = new AnnotationMatcher("@org.springframework.boot.autoconfigure.SpringBootApplication");
-                return (SourceFile) new JavaIsoVisitor<ExecutionContext>() {
-                    @Override
-                    public J.Annotation visitAnnotation(J.Annotation annotation, ExecutionContext context) {
-                        J.Annotation a = super.visitAnnotation(annotation, context);
-                        if (annotationMatcher.matches(a)) {
-                            a = a.withComments(ListUtils.concat(a.getComments(), new TextComment(false, GENERAL_MIGRATION_MESSAGE, "", Markers.EMPTY)));
-                        }
-                        return a;
+        if (!javaProjects.isEmpty()) {
+            AnnotationMatcher annotationMatcher = new AnnotationMatcher("@org.springframework.boot.autoconfigure.SpringBootApplication");
+            JavaIsoVisitor<ExecutionContext> commentVisitor = new JavaIsoVisitor<ExecutionContext>() {
+                @Override
+                public J.Annotation visitAnnotation(J.Annotation annotation, ExecutionContext context) {
+                    J.Annotation a = super.visitAnnotation(annotation, context);
+                    if (annotationMatcher.matches(a)) {
+                        a = a.withComments(ListUtils.concat(a.getComments(), new TextComment(false, GENERAL_MIGRATION_MESSAGE, "", Markers.EMPTY)));
                     }
-                }.visitNonNull(source, ctx);
-            }
-            return source;
-        });
-
+                    return a;
+                }
+            };
+            modified = ListUtils.map(modified, source -> {
+                if (source.getMarkers().findFirst(CommentAdded.class).isPresent()) {
+                    return source;
+                }
+                JavaProject javaProject = source.getMarkers().findFirst(JavaProject.class).orElse(null);
+                if (javaProjects.contains(javaProject) && source instanceof J.CompilationUnit) {
+                    SourceFile after = (SourceFile) commentVisitor.visitNonNull(source, ctx);
+                    if (after != source) {
+                        javaProjects.remove(javaProject);
+                        after = after.withMarkers(after.getMarkers().addIfAbsent(new CommentAdded(Tree.randomId())));
+                        return after;
+                    }
+                }
+                return source;
+            });
+        }
         return modified;
     }
 
+    @Value
+    @With
+    private static class CommentAdded implements Marker {
+        UUID id;
+    }
 }

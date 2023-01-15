@@ -31,13 +31,11 @@ import org.openrewrite.yaml.YamlVisitor;
 import org.openrewrite.yaml.search.FindProperty;
 import org.openrewrite.yaml.tree.Yaml;
 
-import java.util.Set;
-
 public class MigrateDatabaseCredentials extends Recipe {
 
     @Override
     public String getDisplayName() {
-        return "Migrate flyway and liquibase credentials.";
+        return "Migrate flyway and liquibase credentials";
     }
 
     @Override
@@ -85,8 +83,8 @@ public class MigrateDatabaseCredentials extends Recipe {
             return new YamlVisitor<ExecutionContext>() {
                 @Override
                 public Yaml visitDocuments(Yaml.Documents documents, ExecutionContext executionContext) {
-                    doAfterVisit(new MergeYaml("$.spring." + tool,"username: ${spring.datasource.username}", true, null));
-                    doAfterVisit(new MergeYaml("$.spring." + tool,"password: ${spring.datasource.password}", true, null));
+                    doAfterVisit(new MergeYaml("$.spring." + tool,"username: ${spring.datasource.username}", true, null, null));
+                    doAfterVisit(new MergeYaml("$.spring." + tool,"password: ${spring.datasource.password}", true, null, null));
                     doAfterVisit(new CoalesceProperties());
                     return documents;
                 }

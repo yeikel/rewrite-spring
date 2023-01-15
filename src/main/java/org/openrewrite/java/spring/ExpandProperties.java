@@ -15,8 +15,10 @@
  */
 package org.openrewrite.java.spring;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import org.openrewrite.*;
 import org.openrewrite.internal.ListUtils;
+import org.openrewrite.internal.lang.Nullable;
 import org.openrewrite.marker.Markers;
 import org.openrewrite.yaml.YamlVisitor;
 import org.openrewrite.yaml.tree.Yaml;
@@ -29,6 +31,14 @@ import static java.util.Collections.singletonList;
 import static org.openrewrite.Tree.randomId;
 
 public class ExpandProperties extends Recipe {
+
+    @Option(displayName = "Source file mask",
+            description = "An optional source file path mask use to restrict which YAML files will be expanded by this recipe.",
+            example = "**/application*.yml",
+            required = false)
+    @Nullable
+    private final String sourceFileMask;
+
     @Override
     public String getDisplayName() {
         return "Expand Spring YAML properties";
@@ -39,9 +49,21 @@ public class ExpandProperties extends Recipe {
         return "Expand YAML properties to not use the dot syntax shortcut.";
     }
 
+    public ExpandProperties() {
+        this.sourceFileMask = null;
+    }
+
+    @JsonCreator
+    public ExpandProperties(String sourceFileMask) {
+        this.sourceFileMask = sourceFileMask;
+    }
+
     @Override
     protected TreeVisitor<?, ExecutionContext> getSingleSourceApplicableTest() {
-        return new HasSourcePath<>("**/application*.yml");
+        if (sourceFileMask != null) {
+            return new HasSourcePath<>(sourceFileMask);
+        }
+        return null;
     }
 
     @Override
@@ -64,11 +86,12 @@ public class ExpandProperties extends Recipe {
         public Yaml visitMappingEntry(Yaml.Mapping.Entry entry, ExecutionContext ctx) {
             Yaml.Mapping.Entry e = entry;
             String key = e.getKey().getValue();
-            if (key.contains(".")) {
-                e = e.withKey(e.getKey().withValue(key.substring(0, key.indexOf('.'))));
+            if (key.contains(".") && e.getKey() instanceof Yaml.Scalar) {
+                e = e.withKey(((Yaml.Scalar)e.getKey()).withValue(key.substring(0, key.indexOf('.'))));
                 e = e.withValue(new Yaml.Mapping(
                         randomId(),
                         Markers.EMPTY,
+                        null,
                         singletonList(
                                 new Yaml.Mapping.Entry(
                                         randomId(),
@@ -84,7 +107,9 @@ public class ExpandProperties extends Recipe {
                                         "",
                                         e.getValue()
                                 )
-                        )
+                        ),
+                        null,
+                        null
                 ));
                 e = autoFormat(e, ctx, getCursor().getParentOrThrow());
             }
@@ -107,8 +132,11 @@ public class ExpandProperties extends Recipe {
                     Yaml.Mapping newMapping = new Yaml.Mapping(
                             randomId(),
                             Markers.EMPTY,
+                            null,
                             keyMappings.getValue().stream().flatMap(duplicateMapping -> duplicateMapping.getEntries().stream())
-                                    .collect(Collectors.toList())
+                                    .collect(Collectors.toList()),
+                            null,
+                            null
                     );
                     Yaml.Mapping.Entry newEntry = new Yaml.Mapping.Entry(randomId(),
                             "",
