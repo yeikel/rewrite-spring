@@ -1,5 +1,5 @@
 plugins {
-    id("org.openrewrite.build.recipe-library") version "latest.release"
+    id("org.openrewrite.build.recipe-library") version "1.7.0"
 }
 
 group = "org.openrewrite.recipe"
